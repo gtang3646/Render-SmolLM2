@@ -1,47 +1,43 @@
-# 使用轻量级基础镜像
-FROM debian:bookworm-slim
+# ==========================================
+# 阶段 1：Builder (下载与清理)
+# ==========================================
+FROM debian:bookworm-slim AS builder
 
-# 安装依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    cmake \
-    build-essential \
-    wget \
-    nginx \
-    ca-certificates \
+    curl unzip ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 设置工作目录
+WORKDIR /build
+
+# 下载并解压 llama-server，仅保留核心二进制文件
+RUN curl -L -o llama.zip https://github.com/ggerganov/llama.cpp/releases/download/b3925/llama-b3925-bin-ubuntu-x64.zip \
+    && unzip llama.zip \
+    && rm llama.zip \
+    && find . -mindepth 1 -maxdepth 1 ! -name "llama-server" -exec rm -rf {} +
+
+# 下载 SmolLM2-135M 的 4-bit 量化模型
+RUN curl -L -o model.gguf https://huggingface.co/HuggingFaceTB/smollm2-135m-instruct-Q4_K_M-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf
+
+
+# ==========================================
+# 阶段 2：Runtime (极简运行环境)
+# ==========================================
+FROM debian:bookworm-slim
+
+# 仅安装运行 C++ 程序必需的最小依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# 克隆 llama.cpp
-RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git
-
-# 编译 llama.cpp（CPU 优化）
-RUN cd llama.cpp && \
-    cmake -B build \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DLLAMA_NATIVE=OFF \
-        -DLLAMA_AVX2=ON \
-        -DLLAMA_AVX=ON \
-        -DLLAMA_SSE42=ON && \
-    cmake --build build --config Release -j$(nproc)
-
-# 下载 SmolLM2-135M Q4_K_M 模型
-RUN mkdir -p /app/models && \
-    wget -q -O /app/models/SmolLM2-135M-Instruct-Q4_K_M.gguf \
-    "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf"
-
-# 复制配置文件
-COPY nginx.conf /etc/nginx/nginx.conf
+# 精准复制所需文件
+COPY --from=builder /build/llama-server /app/llama-server
+COPY --from=builder /build/model.gguf /app/model.gguf
 COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
 
-# 创建 nginx 所需目录
-RUN mkdir -p /var/log/nginx /var/run /var/lib/nginx
+RUN chmod +x /app/llama-server /app/start.sh
 
-# 暴露 Render 要求的端口
-EXPOSE 10000
+EXPOSE 8080
 
-# 启动服务
 CMD ["/app/start.sh"]
