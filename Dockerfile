@@ -18,8 +18,9 @@ RUN curl -L -o llama.zip https://github.com/ggerganov/llama.cpp/releases/downloa
     && cp build/bin/llama-server . \
     && rm -rf build
 
-# 2. 下载 jc-builds 提供的 Q4_K_M 量化模型 (约 90MB)
-RUN curl -L -o model.gguf https://huggingface.co/jc-builds/SmolLM2-135M-Instruct-Q4_K_M-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf
+# 2. 下载 bartowski 提供的可靠 Q4_K_M 量化模型 (约 105MB)
+# 修复：使用真实有效的链接，避免下载到 HTML 错误页面
+RUN curl -L -o model.gguf https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf
 
 
 # ==========================================
@@ -31,7 +32,6 @@ FROM --platform=linux/amd64 ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # 安装 llama-server 运行所需的动态链接库
-# (Ubuntu 24.04 原生包含 glibc 2.39 和最新的 libstdc++，完美解决版本缺失问题)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     libstdc++6 \
