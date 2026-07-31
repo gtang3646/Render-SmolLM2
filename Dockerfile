@@ -27,9 +27,14 @@ RUN curl -L -o model.gguf https://huggingface.co/jc-builds/SmolLM2-135M-Instruct
 # ==========================================
 FROM --platform=linux/amd64 debian:bookworm-slim
 
-# 仅安装 C++ 和 OpenMP 运行时依赖
+# 核心修复：补全 llama-server 运行所需的所有动态链接库
+# libgomp1: OpenMP 多线程支持
+# libstdc++6: C++ 标准库
+# libcurl4: 网络请求库 (llama-server 强依赖)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 libstdc++6 \
+    libgomp1 \
+    libstdc++6 \
+    libcurl4 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -39,9 +44,7 @@ COPY --from=builder /build/llama-server /app/llama-server
 COPY --from=builder /build/model.gguf /app/model.gguf
 COPY start.sh /app/start.sh
 
-# 核心修复：
-# 1. sed -i 's/\r$//' 强制将 Windows 的 CRLF (\r\n) 换行符替换为 Linux 的 LF (\n)
-# 2. 赋予执行权限
+# 修复 Windows 换行符并赋予执行权限
 RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/llama-server /app/start.sh
 
 EXPOSE 8080
