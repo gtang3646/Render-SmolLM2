@@ -1,40 +1,18 @@
-# ==========================================
-# 阶段 1：Builder (下载与清理)
-# ==========================================
-FROM debian:bookworm-slim AS builder
+#!/bin/sh
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl unzip ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# 动态读取环境变量，适配 Render 和本地运行
+API_KEY=${API_KEY:-"sk-default-secret-key"}
+PORT=${PORT:-8080}
 
-WORKDIR /build
+echo "Starting SmolLM2 API on port $PORT with API Key auth..."
 
-# 下载并解压 llama-server，只保留核心二进制
-RUN curl -L -o llama.zip https://github.com/ggerganov/llama.cpp/releases/download/b3925/llama-b3925-bin-ubuntu-x64.zip \
-    && unzip llama.zip \
-    && rm llama.zip \
-    && find . -mindepth 1 -maxdepth 1 ! -name "llama-server" -exec rm -rf {} +
-
-# 下载 SmolLM2-135M Q4_K_M 模型 (约 90MB)
-RUN curl -L -o model.gguf https://huggingface.co/HuggingFaceTB/smollm2-135m-instruct-Q4_K_M-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf
-
-# ==========================================
-# 阶段 2：Runtime (极简运行环境)
-# ==========================================
-FROM debian:bookworm-slim
-
-# 仅安装 C++ 和 OpenMP 运行时依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-COPY --from=builder /build/llama-server /app/llama-server
-COPY --from=builder /build/model.gguf /app/model.gguf
-COPY start.sh /app/start.sh
-
-RUN chmod +x /app/llama-server /app/start.sh
-
-EXPOSE 8080
-CMD ["/app/start.sh"]
+exec /app/llama-server \
+  -m /app/model.gguf \
+  --host 0.0.0.0 \
+  --port $PORT \
+  --api-key "$API_KEY" \
+  -c 256 \
+  -t 1 \
+  --parallel 1 \
+  --no-mmap \
+  --log-disable
