@@ -1,9 +1,10 @@
 # ==========================================
 # 阶段 1：Builder (下载与清理)
-# 强制指定平台为 linux/amd64，确保与 Render 的 x86_64 服务器完全匹配
+# 使用 ubuntu:24.04 以匹配 llama.cpp 官方预编译二进制文件的 glibc 依赖
 # ==========================================
-FROM --platform=linux/amd64 debian:bookworm-slim AS builder
+FROM --platform=linux/amd64 ubuntu:24.04 AS builder
 
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl unzip ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -23,14 +24,14 @@ RUN curl -L -o model.gguf https://huggingface.co/jc-builds/SmolLM2-135M-Instruct
 
 # ==========================================
 # 阶段 2：Runtime (极简运行环境)
-# 同样强制指定平台为 linux/amd64
+# 同样使用 ubuntu:24.04 确保 glibc 版本完全匹配
 # ==========================================
-FROM --platform=linux/amd64 debian:bookworm-slim
+FROM --platform=linux/amd64 ubuntu:24.04
 
-# 核心修复：补全 llama-server 运行所需的所有动态链接库
-# libgomp1: OpenMP 多线程支持
-# libstdc++6: C++ 标准库
-# libcurl4: 网络请求库 (llama-server 强依赖)
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 安装 llama-server 运行所需的动态链接库
+# (Ubuntu 24.04 原生包含 glibc 2.39 和最新的 libstdc++，完美解决版本缺失问题)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     libstdc++6 \
