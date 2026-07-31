@@ -4,7 +4,7 @@
 ./llama-server \
   -m /app/model.gguf \
   --host 0.0.0.0 \
-  --port $PORT \
+  --port ${PORT:-8080} \
   --api-key "$API_KEY" \
   -c 256 \
   -t 1 \
