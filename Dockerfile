@@ -1,7 +1,8 @@
 # ==========================================
 # 阶段 1：Builder (下载与清理)
+# 强制指定平台为 linux/amd64，确保与 Render 的 x86_64 服务器完全匹配
 # ==========================================
-FROM debian:bookworm-slim AS builder
+FROM --platform=linux/amd64 debian:bookworm-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl unzip ca-certificates \
@@ -22,8 +23,9 @@ RUN curl -L -o model.gguf https://huggingface.co/jc-builds/SmolLM2-135M-Instruct
 
 # ==========================================
 # 阶段 2：Runtime (极简运行环境)
+# 同样强制指定平台为 linux/amd64
 # ==========================================
-FROM debian:bookworm-slim
+FROM --platform=linux/amd64 debian:bookworm-slim
 
 # 仅安装 C++ 和 OpenMP 运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -37,7 +39,10 @@ COPY --from=builder /build/llama-server /app/llama-server
 COPY --from=builder /build/model.gguf /app/model.gguf
 COPY start.sh /app/start.sh
 
-RUN chmod +x /app/llama-server /app/start.sh
+# 核心修复：
+# 1. sed -i 's/\r$//' 强制将 Windows 的 CRLF (\r\n) 换行符替换为 Linux 的 LF (\n)
+# 2. 赋予执行权限
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/llama-server /app/start.sh
 
 EXPOSE 8080
 CMD ["/app/start.sh"]
