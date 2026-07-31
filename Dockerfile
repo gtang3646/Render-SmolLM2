@@ -9,13 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# 1. 下载并精准提取 llama-server
-# 使用 */llama-server 应对不同版本解压后文件夹名称的差异
+# 1. 下载、解压，并精准提取 llama-server，然后清理残留目录
 RUN curl -L -o llama.zip https://github.com/ggerganov/llama.cpp/releases/download/b3925/llama-b3925-bin-ubuntu-x64.zip \
     && unzip llama.zip \
     && rm llama.zip \
-    && mv */llama-server . \
-    && rm -rf */
+    && cp build/bin/llama-server . \
+    && rm -rf build
 
 # 2. 下载 jc-builds 提供的 Q4_K_M 量化模型 (约 90MB)
 RUN curl -L -o model.gguf https://huggingface.co/jc-builds/SmolLM2-135M-Instruct-Q4_K_M-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf
